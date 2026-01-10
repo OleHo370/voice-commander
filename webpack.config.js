@@ -7,7 +7,8 @@ module.exports = {
   entry: {
     popup: './popup.js',
     content: './content.js',
-    background: './background.js'
+    background: './background.js',
+    options: './options.js'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -15,13 +16,12 @@ module.exports = {
     clean: true
   },
   plugins: [
-    new Dotenv({
-      systemvars: true
-    }),
+    new Dotenv({ systemvars: true }),
     new CopyPlugin({
       patterns: [
         { from: 'manifest.json', to: 'manifest.json' },
         { from: 'popup.html', to: 'popup.html' },
+        { from: 'options.html', to: 'options.html' },
         { from: 'icons', to: 'icons', noErrorOnMissing: true }
       ]
     })

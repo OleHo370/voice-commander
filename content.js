@@ -1,7 +1,6 @@
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.command) {
     const command = request.command;
-    
     if (command.action === 'zoom' || command.action === 'tab') {
       chrome.runtime.sendMessage({
         type: command.action === 'zoom' ? 'zoom' : 'tabControl',
@@ -20,11 +19,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 function executeDOMCommand(command) {
   switch (command.action) {
     case 'scroll':
-      const scrollAmt = command.amount || 300;
-      window.scrollBy({ 
-        top: command.direction === 'down' ? scrollAmt : -scrollAmt, 
-        behavior: 'smooth' 
-      });
+      const multiplier = command.amount !== undefined ? command.amount : 1;
+      const scrollDistance = window.innerHeight * multiplier;
+      handleAdvancedScroll(command.direction, scrollDistance);
       break;
     case 'volume':
       const videos = document.querySelectorAll('video, audio');
@@ -38,5 +35,36 @@ function executeDOMCommand(command) {
     case 'refresh':
       location.reload();
       break;
+  }
+}
+
+function handleAdvancedScroll(direction, distance) {
+  switch (direction) {
+    case 'top':
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      break;
+    case 'bottom':
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      break;
+    case 'up':
+      window.scrollBy({ top: -distance, behavior: 'smooth' });
+      break;
+    case 'down':
+      window.scrollBy({ top: distance, behavior: 'smooth' });
+      break;
+    case 'next':
+      scrollToNextSection();
+      break;
+  }
+}
+
+function scrollToNextSection() {
+  const selectors = 'section, article, h1, h2, h3, hr';
+  const elements = Array.from(document.querySelectorAll(selectors));
+  const next = elements.find(el => el.getBoundingClientRect().top > 50);
+  if (next) {
+    next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
   }
 }
