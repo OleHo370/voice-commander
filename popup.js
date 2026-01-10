@@ -51,8 +51,17 @@ if (!SpeechRecognition) {
   };
 
   recognition.onerror = (event) => {
-    statusDiv.textContent = 'Error Occurred';
-    transcriptDiv.textContent = `System: ${event.error}`;
+    console.error('Speech Error:', event.error);
+    if (event.error === 'not-allowed') {
+      statusDiv.textContent = 'Permission Denied';
+      transcriptDiv.textContent = 'Opening setup page to fix microphone access...';
+      setTimeout(() => {
+        chrome.tabs.create({ url: 'options.html' });
+      }, 2000);
+    } else {
+      statusDiv.textContent = 'Error Occurred';
+      transcriptDiv.textContent = `System: ${event.error}`;
+    }
   };
 }
 
@@ -76,33 +85,29 @@ async function processCommand(transcript) {
         messages: [{
           role: 'user',
           content: `You are a command parser. Convert the voice command to JSON.
-          Actions: zoom (in/out), scroll (up/down), volume (up/down), tab (next/previous), refresh, other.
+          Actions: 
+          - zoom (in/out): amount is the multiplier (default 1).
+          - scroll (up/down/top/bottom/next): amount is the multiplier (default 1).
+          - volume (up/down): amount is the percentage.
+          - tab (next/previous)
+          - refresh
+          - search (query): Use this if and only if the user says "google [query]" or "search for [query]".
+          - other (query): Any other command that doesn't fit the above categories.
+          
           Command: "${transcript}"
-          Output only valid JSON, for example: {"action": "zoom", "direction": "in", "amount": 10}`
+          Output only valid JSON.`
         }]
       })
     });
 
     const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.error?.message || 'API Request Failed');
-    }
+    if (!response.ok) throw new Error(data.error?.message || 'API Request Failed');
 
     const commandText = data.choices[0].message.content.trim();
     const jsonMatch = commandText.match(/\{[\s\S]*\}/);
-    
     if (jsonMatch) {
-      try {
-        const command = JSON.parse(jsonMatch[0]);
-        await executeCommand(command);
-      } catch (e) {
-        statusDiv.textContent = 'Parse Error';
-        transcriptDiv.textContent = 'The AI returned an invalid command format.';
-      }
-    } else {
-      statusDiv.textContent = 'Unknown Command';
-      transcriptDiv.textContent = "I couldn't match that to an action.";
+      const command = JSON.parse(jsonMatch[0]);
+      await executeCommand(command);
     }
   } catch (error) {
     statusDiv.textContent = 'API Error';
@@ -111,8 +116,21 @@ async function processCommand(transcript) {
 }
 
 async function executeCommand(command) {
+  if (command.action === 'search') {
+    chrome.runtime.sendMessage({ type: 'search', query: command.query });
+    statusDiv.textContent = 'Success';
+    transcriptDiv.textContent = `Searching Google for: ${command.query}`;
+    setTimeout(() => { statusDiv.textContent = 'Ready'; }, 2000);
+    return;
+  }
+  if (command.action === 'other') {
+    chrome.runtime.sendMessage({ type: 'other', query: command.query });
+    statusDiv.textContent = 'Success';
+    transcriptDiv.textContent = `Processing request: ${command.query}`;
+    setTimeout(() => { statusDiv.textContent = 'Ready'; }, 2000);
+    return;
+  }
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  
   if (!tab) return;
 
   chrome.tabs.sendMessage(tab.id, { command }, (response) => {
@@ -133,18 +151,11 @@ async function executeCommand(command) {
             amount: command.amount
           });
           statusDiv.textContent = 'Success';
-          transcriptDiv.textContent = `Applied ${command.action} successfully.`;
-      } else {
-        statusDiv.textContent = 'Blocked';
-        transcriptDiv.textContent = 'Commands are restricted on this specific page.';
       }
     } else {
       statusDiv.textContent = 'Success';
-      transcriptDiv.textContent = `Command "${command.action}" executed.`;
+      transcriptDiv.textContent = `Applied: ${command.action}`;
     }
-    
-    setTimeout(() => {
-      statusDiv.textContent = 'Ready';
-    }, 2500);
+    setTimeout(() => { statusDiv.textContent = 'Ready'; }, 2000);
   });
 }
