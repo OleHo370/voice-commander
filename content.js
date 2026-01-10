@@ -24,13 +24,9 @@ function executeDOMCommand(command) {
       handleAdvancedScroll(command.direction, scrollDistance);
       break;
     case 'volume':
-      const videos = document.querySelectorAll('video, audio');
-      const volAmt = (command.amount || 10) / 100;
-      videos.forEach(media => {
-        media.volume = command.direction === 'up' 
-          ? Math.min(1, media.volume + volAmt) 
-          : Math.max(0, media.volume - volAmt);
-      });
+      if(command.direction === 'up'){
+        chrome.runtime.sendMessage({ action: "changeVolume", mode: 1 });
+      }
       break;
     case 'refresh':
       location.reload();

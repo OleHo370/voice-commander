@@ -44,4 +44,8 @@ async function handleZoom(direction, amount) {
     
   newZoom = Math.max(0.25, Math.min(5, newZoom));
   await chrome.tabs.setZoom(tabId, newZoom);
-}
+}chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+  if (changeInfo.status == 'complete') {
+    //chrome.tabs.sendMessage(tabId, { action: "changeVolume", amount: 1 });
+  }
+});
