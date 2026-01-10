@@ -1,5 +1,4 @@
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
-
+let OPENROUTER_API_KEY = null;
 let recognition;
 let isListening = false;
 
@@ -7,11 +6,18 @@ const micButton = document.getElementById('micButton');
 const statusDiv = document.getElementById('status');
 const transcriptDiv = document.getElementById('transcript');
 
-if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY === 'undefined') {
-  statusDiv.textContent = 'Configuration Error';
-  transcriptDiv.textContent = 'API key not found in .env file.';
-  micButton.disabled = true;
-}
+navigator.mediaDevices.getUserMedia({ audio: true })
+
+// Load API key from Chrome storage
+chrome.storage.sync.get(['openrouterApiKey'], (result) => {
+  OPENROUTER_API_KEY = result.openrouterApiKey;
+  
+  if (!OPENROUTER_API_KEY) {
+    statusDiv.textContent = 'Configuration Error';
+    transcriptDiv.textContent = 'API key not found. Please set it in the extension options.';
+    micButton.disabled = true;
+  }
+});
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -110,6 +116,17 @@ async function executeCommand(command) {
   if (!tab) return;
 
   chrome.tabs.sendMessage(tab.id, { command }, (response) => {
+    console.log("Command action: " + command.action);
+    if(command.action === 'volume'){
+      console.log("Check");
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          type: "changeVolume",
+          amount: command.direction === 'up'
+            ? command.amount
+            : -command.amount
+        });
+      });    }
     if (chrome.runtime.lastError) {
       if (command.action === 'zoom' || command.action === 'tab') {
           chrome.runtime.sendMessage({
