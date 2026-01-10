@@ -76,7 +76,7 @@ async function processCommand(transcript) {
         messages: [{
           role: 'user',
           content: `You are a command parser. Convert the voice command to JSON.
-          Actions: zoom (in/out), scroll (up/down), volume (up/down), tab (next/previous), refresh.
+          Actions: zoom (in/out), scroll (up/down), volume (up/down), tab (next/previous), refresh, other.
           Command: "${transcript}"
           Output only valid JSON, for example: {"action": "zoom", "direction": "in", "amount": 10}`
         }]
@@ -116,9 +116,7 @@ async function executeCommand(command) {
   if (!tab) return;
 
   chrome.tabs.sendMessage(tab.id, { command }, (response) => {
-    console.log("Command action: " + command.action);
     if(command.action === 'volume'){
-      console.log("Check");
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         chrome.tabs.sendMessage(tabs[0].id, {
           type: "changeVolume",
