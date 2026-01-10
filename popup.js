@@ -91,7 +91,7 @@ async function processCommand(transcript) {
           - volume (up/down): amount is the percentage.
           - tab (next/previous)
           - refresh
-          - search (query): Use this if and only if the user says "google [query]" or "search for [query]".
+          - search (query): Use this if and only if the user says "google [query]", "find [query]", or "search for [query]".
           - other (query): Any other command that doesn't fit the above categories.
           
           Command: "${transcript}"

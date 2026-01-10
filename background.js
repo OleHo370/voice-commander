@@ -6,8 +6,8 @@ chrome.storage.sync.get(['openrouterApiKey'], (result) => {
   OPENROUTER_API_KEY = result.openrouterApiKey;
   
   if (!OPENROUTER_API_KEY) {
-    statusDiv.textContent = 'Configuration Error';
-    transcriptDiv.textContent = 'API key not found. Please set it in the extension options.';
+    console.log('Configuration Error');
+    console.log('API key not found. Please set it in the extension options.');
     micButton.disabled = true;
   }
 });
@@ -87,7 +87,7 @@ async function processRequest(transcript) {
         messages: [{
           role: 'user',
           content: `You are an AI assistant, aimed to help elderly users without tech experience to navigate the web. 
-          Respond to the user's quesitions in a simple, friendly, and concise manner, avoiding technical jargon. 
+          Respond to the user's quesitions in a simple, friendly, and concise manner, avoiding technical jargon. Keep it within 10 seconds.
           If you don't know the answer or are unable to help, admit it instead of making something up.
           Question: "${transcript}"`
         }]
@@ -106,8 +106,7 @@ async function processRequest(transcript) {
     await generateSpeech(responseText);
     
   } catch (error) {
-    statusDiv.textContent = 'API Error';
-    transcriptDiv.textContent = error.message;
+    console.log('Error processing request:', error);
   }
 }
 
