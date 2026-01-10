@@ -91,7 +91,8 @@ async function processCommand(transcript) {
           - volume (up/down): amount is the percentage.
           - tab (next/previous)
           - refresh
-          - search (query): Use this if the user says "google [query]" or "search for [query]".
+          - search (query): Use this if and only if the user says "google [query]", "find [query]", or "search for [query]".
+          - other (query): Any other command that doesn't fit the above categories.
           
           Command: "${transcript}"
           Output only valid JSON.`
@@ -122,14 +123,18 @@ async function executeCommand(command) {
     setTimeout(() => { statusDiv.textContent = 'Ready'; }, 2000);
     return;
   }
-
+  if (command.action === 'other') {
+    chrome.runtime.sendMessage({ type: 'other', query: command.query });
+    statusDiv.textContent = 'Success';
+    transcriptDiv.textContent = `Processing request: ${command.query}`;
+    setTimeout(() => { statusDiv.textContent = 'Ready'; }, 2000);
+    return;
+  }
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
 
   chrome.tabs.sendMessage(tab.id, { command }, (response) => {
-    console.log("Command action: " + command.action);
     if(command.action === 'volume'){
-      console.log("Check");
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         chrome.tabs.sendMessage(tabs[0].id, {
           type: "changeVolume",

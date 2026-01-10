@@ -5,6 +5,7 @@
   "description": "Control your browser with voice commands",
   "permissions": [
     "activeTab",
+    "offscreen",
     "tabs",
     "storage",
     "scripting"
@@ -13,7 +14,7 @@
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "background.js",
+    "service_worker": "dist/background.js",
     "type": "module"
   },
   "action": {
@@ -24,6 +25,12 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js", "modifypage.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["audio/sound.mp3", "html/offscreen.html", "js/offscreen.js"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

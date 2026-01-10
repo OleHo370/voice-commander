@@ -1,6 +1,7 @@
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.command) {
     const command = request.command;
+    console.log("Received command: ", command);
     if (command.action === 'zoom' || command.action === 'tab') {
       chrome.runtime.sendMessage({
         type: command.action === 'zoom' ? 'zoom' : 'tabControl',
@@ -64,3 +65,14 @@ function scrollToNextSection() {
     window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
   }
 }
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === "playAudio") {
+    content.log("Received audio to play");
+    const blob = new Blob([msg.audioBuffer], { type: "audio/mpeg" });
+    const url = URL.createObjectURL(blob);
+
+    const audio = new Audio(url);
+    audio.play();
+  }
+});
