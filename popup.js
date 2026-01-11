@@ -6,26 +6,17 @@ const micButton = document.getElementById('micButton');
 const statusDiv = document.getElementById('status');
 const transcriptDiv = document.getElementById('transcript');
 
-navigator.mediaDevices.getUserMedia({ audio: true })
-
-// Load API key from Chrome storage
 chrome.storage.sync.get(['openrouterApiKey'], (result) => {
   OPENROUTER_API_KEY = result.openrouterApiKey;
-  
   if (!OPENROUTER_API_KEY) {
-    statusDiv.textContent = 'Configuration Error';
-    transcriptDiv.textContent = 'API key not found. Please set it in the extension options.';
+    statusDiv.textContent = 'Config Error';
     micButton.disabled = true;
   }
 });
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-if (!SpeechRecognition) {
-  statusDiv.textContent = 'Not Supported';
-  transcriptDiv.textContent = 'Speech recognition is not supported in this browser.';
-  micButton.disabled = true;
-} else {
+if (SpeechRecognition) {
   recognition = new SpeechRecognition();
   recognition.continuous = false;
   recognition.interimResults = false;
@@ -35,7 +26,6 @@ if (!SpeechRecognition) {
     isListening = true;
     micButton.classList.add('listening');
     statusDiv.textContent = 'Listening...';
-    transcriptDiv.textContent = 'Speak clearly into your mic';
   };
 
   recognition.onend = () => {
@@ -49,20 +39,6 @@ if (!SpeechRecognition) {
     statusDiv.textContent = 'Processing...';
     await processCommand(transcript);
   };
-
-  recognition.onerror = (event) => {
-    console.error('Speech Error:', event.error);
-    if (event.error === 'not-allowed') {
-      statusDiv.textContent = 'Permission Denied';
-      transcriptDiv.textContent = 'Opening setup page to fix microphone access...';
-      setTimeout(() => {
-        chrome.tabs.create({ url: 'options.html' });
-      }, 2000);
-    } else {
-      statusDiv.textContent = 'Error Occurred';
-      transcriptDiv.textContent = `System: ${event.error}`;
-    }
-  };
 }
 
 micButton.addEventListener('click', () => {
@@ -72,90 +48,136 @@ micButton.addEventListener('click', () => {
 
 async function processCommand(transcript) {
   try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) return;
+
+    const screenshotUrl = await chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 40 });
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'https://github.com/OleHo370/voice-commander',
-        'X-Title': 'Voice Commander'
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001', 
+        model: 'google/gemini-2.0-flash-001',
         messages: [{
           role: 'user',
-          content: `You are a command parser. Convert the voice command to JSON.
-          Actions: 
-          - zoom (in/out): amount is the multiplier (default 1).
-          - scroll (up/down/top/bottom/next): amount is the multiplier (default 1).
-          - volume (up/down): amount is the percentage.
-          - tab (next/previous)
-          - refresh
-          - search (query): Use this if and only if the user says "google [query]", "find [query]", or "search for [query]".
-          - other (query): Any other command that doesn't fit the above categories.
-          
-          Command: "${transcript}"
-          Output only valid JSON.`
+          content: [
+            {
+              type: 'text',
+              text: `You are a command parser. Convert the voice command to JSON with this EXACT structure:
+              
+              For browser commands:
+              {"action": "zoom", "direction": "in/out", "amount": 1}
+              {"action": "scroll", "direction": "up/down/top/bottom/next", "amount": 1}
+              {"action": "volume", "direction": "up/down", "amount": 10}
+              {"action": "tab", "direction": "next/previous"}
+              {"action": "refresh"}
+              
+              For search (ONLY if user says "google/find/search"):
+              {"action": "search", "query": "search terms"}
+              
+              For location questions (where is X):
+              {"action": "locate", "query": "what user asked", "point": [y, x]}
+              
+              For questions about screen content:
+              {"action": "other", "query": "what user asked", "point": [y, x]}
+              (Include "point" ONLY if asking about a specific location)
+              
+              Command: "${transcript}"
+              
+              IMPORTANT: Return ONLY the JSON object, no markdown, no explanation.`
+            },
+            { type: 'image_url', image_url: { url: screenshotUrl } }
+          ]
         }]
       })
     });
 
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error?.message || 'API Request Failed');
-
-    const commandText = data.choices[0].message.content.trim();
-    const jsonMatch = commandText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const command = JSON.parse(jsonMatch[0]);
-      await executeCommand(command);
+    let content = data.choices[0].message.content.trim();
+    console.log('LLM Response:', content);
+    
+    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    
+    let command;
+    try {
+      command = JSON.parse(content);
+      console.log('Parsed command:', command);
+    } catch (e) {
+      console.error('JSON parse error:', e);
+      statusDiv.textContent = 'Parse Error';
+      return;
     }
-  } catch (error) {
-    statusDiv.textContent = 'API Error';
-    transcriptDiv.textContent = error.message;
-  }
-}
-
-async function executeCommand(command) {
-  if (command.action === 'search') {
-    chrome.runtime.sendMessage({ type: 'search', query: command.query });
-    statusDiv.textContent = 'Success';
-    transcriptDiv.textContent = `Searching Google for: ${command.query}`;
-    setTimeout(() => { statusDiv.textContent = 'Ready'; }, 2000);
-    return;
-  }
-  if (command.action === 'other') {
-    chrome.runtime.sendMessage({ type: 'other', query: command.query });
-    statusDiv.textContent = 'Success';
-    transcriptDiv.textContent = `Processing request: ${command.query}`;
-    setTimeout(() => { statusDiv.textContent = 'Ready'; }, 2000);
-    return;
-  }
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) return;
-
-  chrome.tabs.sendMessage(tab.id, { command }, (response) => {
-    if(command.action === 'volume'){
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          type: "changeVolume",
-          amount: command.direction === 'up'
-            ? command.amount
-            : -command.amount
+    
+    if (command.action === 'locate') {
+      if (command.point && Array.isArray(command.point) && command.point.length === 2) {
+        console.log('Drawing circle at:', command.point);
+        chrome.tabs.sendMessage(tab.id, { 
+          type: "drawCircle", 
+          y: command.point[0], 
+          x: command.point[1] 
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Circle draw error:', chrome.runtime.lastError);
+          } else {
+            console.log('Circle draw response:', response);
+          }
         });
-      });    }
-    if (chrome.runtime.lastError) {
-      if (command.action === 'zoom' || command.action === 'tab') {
-          chrome.runtime.sendMessage({
-            type: command.action === 'zoom' ? 'zoom' : 'tabControl',
-            direction: command.direction,
-            amount: command.amount
-          });
-          statusDiv.textContent = 'Success';
       }
+
+      console.log('Sending locate to background for voice response');
+      chrome.runtime.sendMessage({ 
+        type: 'other', 
+        query: command.query || transcript,
+        image: screenshotUrl,
+        tabId: tab.id
+      });
+      
+    } else if (command.action === 'other') {
+      if (command.point && Array.isArray(command.point) && command.point.length === 2) {
+        console.log('Drawing circle at:', command.point);
+        chrome.tabs.sendMessage(tab.id, { 
+          type: "drawCircle", 
+          y: command.point[0], 
+          x: command.point[1] 
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Circle draw error:', chrome.runtime.lastError);
+          } else {
+            console.log('Circle draw response:', response);
+          }
+        });
+      }
+      
+      console.log('Sending question to background for voice response');
+      chrome.runtime.sendMessage({ 
+        type: 'other', 
+        query: command.query || transcript,
+        image: screenshotUrl,
+        tabId: tab.id
+      });
+      
+    } else if (command.action === 'search') {
+      chrome.runtime.sendMessage({ type: 'search', query: command.query });
+      
     } else {
-      statusDiv.textContent = 'Success';
-      transcriptDiv.textContent = `Applied: ${command.action}`;
+      chrome.tabs.sendMessage(tab.id, { command });
+      
+      if (['zoom', 'tab', 'volume'].includes(command.action)) {
+        chrome.runtime.sendMessage({
+          type: command.action === 'zoom' ? 'zoom' : (command.action === 'tab' ? 'tabControl' : 'volume'),
+          direction: command.direction,
+          amount: command.amount
+        });
+      }
     }
-    setTimeout(() => { statusDiv.textContent = 'Ready'; }, 2000);
-  });
+    
+    statusDiv.textContent = 'Success';
+    
+  } catch (error) {
+    console.error('Command processing error:', error);
+    statusDiv.textContent = 'Error';
+  }
 }

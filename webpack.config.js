@@ -7,6 +7,7 @@ module.exports = {
   entry: {
     popup: './popup.js',
     content: './content.js',
+    modifypage: './modifypage.js',
     background: './background.js',
     options: './options.js'
   },
@@ -22,6 +23,8 @@ module.exports = {
         { from: 'manifest.json', to: 'manifest.json' },
         { from: 'popup.html', to: 'popup.html' },
         { from: 'options.html', to: 'options.html' },
+        { from: 'html', to: 'html' },
+        { from: 'js', to: 'js' },
         { from: 'icons', to: 'icons', noErrorOnMissing: true }
       ]
     })
