@@ -120,6 +120,63 @@
       color: var(--text-muted);
       text-align: center;
     }
+    .voice-grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .voice-card {
+      background: var(--white);
+      border: 1px solid var(--border-blue);
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      grid-template-rows: auto auto;
+      gap: 6px 10px;
+      align-items: center;
+    }
+
+    .voice-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+      grid-column: 1 / 4;
+    }
+
+    .voice-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      grid-column: 1 / 2;
+    }
+
+    .voice-btn {
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-blue);
+      background: var(--light-blue);
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .active {
+      background-color: var(--text-muted) !important;
+      color: white;
+      border: none;
+    }
+
+    .voice-btn:hover {
+      background-color: var(--border-blue);
+    }
+
+    .voice-btn.select {
+      background-color: var(--primary-blue);
+      color: white;
+      border: none;
+    }
   </style>
 </head>
 <body>
@@ -136,9 +193,9 @@
       <div id="status">Ready</div>
       <div id="transcript">Tap the microphone and say something like "Zoom in" or "Scroll down"</div>
     </div>
-
-    <div class="footer-hints">
-      Powered by Gemini Flash 1.5
+    
+    <div class="voice-grid" id="voiceGrid">
+      <!-- Voice cards will be dynamically inserted here -->
     </div>
   </div>
 

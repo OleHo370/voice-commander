@@ -1,6 +1,6 @@
 let OPENROUTER_API_KEY = null;
 let ELEVENLABS_API_KEY = null;
-const VOICE_ID = 'TX3LPaxmHKxFdv7VOQHJ';
+let VOICE_ID = null;
 
 async function loadAPIKeys() {
   chrome.storage.sync.get(['openrouterApiKey', 'elevenlabsApiKey'], (result) => {
@@ -11,6 +11,10 @@ async function loadAPIKeys() {
       elevenlabs: !!ELEVENLABS_API_KEY 
     });
   });
+chrome.storage.local.get(['selectedVoice'], (result) => {
+  VOICE_ID = result.selectedVoice;
+  console.log('Selected voice ID loaded:', VOICE_ID);
+});
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -172,3 +176,20 @@ async function handleZoom(direction, amount) {
 }
 
 loadAPIKeys();
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "CAPTURE_SCREENSHOT") {
+    chrome.tabs.captureVisibleTab(
+      null,
+      { format: "jpeg", quality: 40 },
+      (dataUrl) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse({ dataUrl });
+        }
+      }
+    );
+    return true; // async response
+  }
+});

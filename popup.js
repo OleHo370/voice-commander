@@ -1,17 +1,21 @@
 let OPENROUTER_API_KEY = null;
+let ELEVENLABS_API_KEY = null;
+
 let recognition;
 let isListening = false;
+let isStoppingManually = false;
 
 const micButton = document.getElementById('micButton');
 const statusDiv = document.getElementById('status');
 const transcriptDiv = document.getElementById('transcript');
 
-chrome.storage.sync.get(['openrouterApiKey'], (result) => {
+chrome.storage.sync.get(['openrouterApiKey', 'elevenlabsApiKey'], (result) => {
   OPENROUTER_API_KEY = result.openrouterApiKey;
-  if (!OPENROUTER_API_KEY) {
-    statusDiv.textContent = 'Config Error';
-    micButton.disabled = true;
-  }
+  ELEVENLABS_API_KEY = result.elevenlabsApiKey;
+  console.log('API Keys loaded:', { 
+    openrouter: !!OPENROUTER_API_KEY, 
+    elevenlabs: !!ELEVENLABS_API_KEY 
+  });
 });
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -24,13 +28,18 @@ if (SpeechRecognition) {
 
   recognition.onstart = () => {
     isListening = true;
+    isStoppingManually = false;
     micButton.classList.add('listening');
     statusDiv.textContent = 'Listening...';
   };
 
   recognition.onend = () => {
-    isListening = false;
-    micButton.classList.remove('listening');
+    if(isStoppingManually) {
+      isListening = false;
+      micButton.classList.remove('listening');
+      return;
+    }
+    recognition.start();
   };
 
   recognition.onresult = async (event) => {
@@ -42,7 +51,10 @@ if (SpeechRecognition) {
 }
 
 micButton.addEventListener('click', () => {
-  if (isListening) recognition.stop();
+  if (isListening) {
+    isStoppingManually = true;
+    recognition.stop();
+  }
   else recognition.start();
 });
 
@@ -51,7 +63,18 @@ async function processCommand(transcript) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab) return;
 
-    const screenshotUrl = await chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 40 });
+    const screenshotUrl = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { type: "CAPTURE_SCREENSHOT" },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response?.dataUrl);
+          }
+        }
+      );
+    });
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -234,3 +257,100 @@ async function processCommand(transcript) {
     statusDiv.textContent = 'Error';
   }
 }
+
+const voiceGrid = document.getElementById("voiceGrid");
+
+const sampleAudio = new Audio();
+sampleAudio.preload = "none";
+
+let voicesConfig = [];
+let voiceSamples = new Map(); // voiceId → preview_url
+
+let selectedVoiceId = null;
+
+async function loadVoicesConfig() {
+  const res = await fetch("voices.json");
+  voicesConfig = await res.json();
+}
+
+async function fetchVoiceSamples() {
+  const res = await fetch("https://api.elevenlabs.io/v1/voices", {
+    headers: {
+      "xi-api-key": ELEVENLABS_API_KEY
+    }
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json();
+    console.error("API Error:", errorData);
+    return; 
+  }
+
+  const data = await res.json();
+
+  for (const voice of data.voices) {
+    if (voice.preview_url) {
+      voiceSamples.set(voice.voice_id, voice.preview_url);
+    }
+  }
+}
+
+function renderVoices() {
+  voiceGrid.innerHTML = "";
+
+  voicesConfig.forEach((voice, index) => {
+    const isActive = voice.voiceId === selectedVoiceId;
+
+    const card = document.createElement("div");
+    card.className = "voice-card";
+
+    card.innerHTML = `
+      <div class="voice-name">${voice.name}</div>
+      <div class="voice-desc">${voice.description}</div>
+      <button class="voice-btn sample">▶ Sample</button>
+      <button class="voice-btn select ${isActive ? "active" : ""}">
+        ${isActive ? "Active" : "Select"}
+      </button>
+    `;
+
+    const sampleBtn = card.querySelector(".sample");
+    sampleBtn.addEventListener("click", () => {
+      const url = voiceSamples.get(voice.voiceId);
+      if (!url) return;
+
+      sampleAudio.pause();
+      sampleAudio.src = url;
+      sampleAudio.currentTime = 0;
+      sampleAudio.play();
+    });
+
+    const selectBtn = card.querySelector(".select");
+    selectBtn.addEventListener("click", () => {
+      if (selectedVoiceId === voice.voiceId) return;
+
+      selectedVoiceId = voice.voiceId;
+
+      chrome.storage.local.set({ selectedVoice: selectedVoiceId }, () => {
+        renderVoices();
+      });
+    });
+
+    voiceGrid.appendChild(card);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadVoicesConfig();
+  await fetchVoiceSamples();
+
+  chrome.storage.local.get(["selectedVoice"], (result) => {
+    if (result.selectedVoice) {
+      selectedVoiceId = result.selectedVoice;
+    } else if (voicesConfig.length > 0) {
+      selectedVoiceId = voicesConfig[0].voiceId;
+      chrome.storage.local.set({ selectedVoice: selectedVoiceId });
+    }
+
+    renderVoices();
+  });
+});

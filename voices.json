@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Alice",
+    "description": "Clear, Engaging educator",
+    "voiceId": "Xb7hH8MSUJpSbSDYk0k2"
+  },
+  {
+    "name": "Brian",
+    "description": "Deep, Resonant, and Comforting",
+    "voiceId": "nPczCjzI2devNBz1zQrb"
+  },
+  {
+    "name": "Chris",
+    "description": "Charming, Down-to-Earth",
+    "voiceId": "iP95p4xoKVk53GoZ742B"
+  },
+  {
+    "name": "Jessica",
+    "description": "Playful, Bright, Warm",
+    "voiceId": "cgSgspJ2msm6clMCkdW9"
+  },
+  {
+    "name": "Liam",
+    "description": "Energetic",
+    "voiceId": "TX3LPaxmHKxFdv7VOQHJ"
+  }
+]
