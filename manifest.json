@@ -4,8 +4,8 @@
  "version": "1.0",
  "description": "Control your browser with voice commands",
  "permissions": [
-   "activeTab",
    "offscreen",
+   "sidePanel",
    "tabs",
    "storage",
    "scripting"
@@ -17,8 +17,8 @@
    "service_worker": "dist/background.js",
    "type": "module"
  },
- "action": {
-   "default_popup": "popup.html"
+ "side_panel": {
+   "default_path": "popup.html"
  },
  "options_page": "options.html",
  "content_scripts": [
