@@ -2,14 +2,16 @@ let OPENROUTER_API_KEY = null;
 let ELEVENLABS_API_KEY = null;
 const VOICE_ID = 'TX3LPaxmHKxFdv7VOQHJ';
 
-chrome.storage.sync.get(['openrouterApiKey', 'elevenlabsApiKey'], (result) => {
-  OPENROUTER_API_KEY = result.openrouterApiKey;
-  ELEVENLABS_API_KEY = result.elevenlabsApiKey;
-  console.log('API Keys loaded:', { 
-    openrouter: !!OPENROUTER_API_KEY, 
-    elevenlabs: !!ELEVENLABS_API_KEY 
+async function loadAPIKeys() {
+  chrome.storage.sync.get(['openrouterApiKey', 'elevenlabsApiKey'], (result) => {
+    OPENROUTER_API_KEY = result.openrouterApiKey;
+    ELEVENLABS_API_KEY = result.elevenlabsApiKey;
+    console.log('API Keys loaded:', { 
+      openrouter: !!OPENROUTER_API_KEY, 
+      elevenlabs: !!ELEVENLABS_API_KEY 
+    });
   });
-});
+}
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'tabControl') {
@@ -29,8 +31,7 @@ async function processVisualRequest(query, imageData, tabId) {
   console.log('Processing visual request:', query);
   
   if (!OPENROUTER_API_KEY) {
-    console.error('OpenRouter API key not found');
-    return;
+    await loadAPIKeys();
   }
 
   try {
@@ -169,3 +170,5 @@ async function handleZoom(direction, amount) {
   let newZoom = direction === 'in' ? currentZoom + zoomChange : currentZoom - zoomChange;
   await chrome.tabs.setZoom(tabs[0].id, Math.max(0.25, Math.min(5, newZoom)));
 }
+
+loadAPIKeys();
