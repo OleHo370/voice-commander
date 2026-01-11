@@ -78,8 +78,13 @@ async function processCommand(transcript) {
               For search (ONLY if user says "google/find/search"):
               {"action": "search", "query": "search terms"}
               
+              For clicking links (if user says "click X" or "open X" or "press X"):
+              {"action": "click", "query": "link text to find", "point": [y, x]}
+              (point is normalized 0-1000 coordinates of the EXACT CENTER of the clickable element)
+              
               For location questions (where is X):
               {"action": "locate", "query": "what user asked", "point": [y, x]}
+              (point is normalized 0-1000 coordinates of the CENTER of the item)
               
               For questions about screen content:
               {"action": "other", "query": "what user asked", "point": [y, x]}
@@ -113,27 +118,75 @@ async function processCommand(transcript) {
     
     if (command.action === 'locate') {
       if (command.point && Array.isArray(command.point) && command.point.length === 2) {
-        console.log('Drawing circle at:', command.point);
+        console.log('LOCATE: Drawing circle at:', command.point);
         chrome.tabs.sendMessage(tab.id, { 
           type: "drawCircle", 
           y: command.point[0], 
           x: command.point[1] 
         }, (response) => {
           if (chrome.runtime.lastError) {
-            console.error('Circle draw error:', chrome.runtime.lastError);
+            console.error('LOCATE: Circle draw error:', chrome.runtime.lastError);
           } else {
-            console.log('Circle draw response:', response);
+            console.log('LOCATE: Circle draw response:', response);
           }
         });
+      } else {
+        console.error('LOCATE: No valid point provided:', command.point);
       }
-
-      console.log('Sending locate to background for voice response');
+      
+      // Send to background for voice response
+      console.log('LOCATE: Sending to background for voice response');
       chrome.runtime.sendMessage({ 
         type: 'other', 
         query: command.query || transcript,
         image: screenshotUrl,
         tabId: tab.id
       });
+      
+    } else if (command.action === 'click') {
+      console.log('CLICK: Clicking link:', command.query, 'at point:', command.point);
+      
+      if (command.point && Array.isArray(command.point) && command.point.length === 2) {
+        console.log('CLICK: Using coordinates to click');
+        chrome.tabs.sendMessage(tab.id, { 
+          type: "clickAtCoordinates",
+          point: command.point
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('CLICK: Click error:', chrome.runtime.lastError);
+            console.error('CLICK: This usually means content script is not loaded. Trying to inject...');
+            
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['dist/modifypage.js']
+            }, () => {
+              setTimeout(() => {
+                chrome.tabs.sendMessage(tab.id, { 
+                  type: "clickAtCoordinates",
+                  point: command.point
+                }, (retryResponse) => {
+                  console.log('CLICK: Retry response:', retryResponse);
+                });
+              }, 100);
+            });
+          } else {
+            console.log('CLICK: Click response:', response);
+          }
+        });
+      } else {
+        console.log('CLICK: No coordinates, falling back to text search');
+        chrome.tabs.sendMessage(tab.id, { 
+          type: "clickLink",
+          query: command.query,
+          useTextSearch: true
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('CLICK: Click error:', chrome.runtime.lastError);
+          } else {
+            console.log('CLICK: Click response:', response);
+          }
+        });
+      }
       
     } else if (command.action === 'other') {
       if (command.point && Array.isArray(command.point) && command.point.length === 2) {
