@@ -1,6 +1,6 @@
 let OPENROUTER_API_KEY = null;
 let ELEVENLABS_API_KEY = null;
-const VOICE_ID = 'TX3LPaxmHKxFdv7VOQHJ';
+let VOICE_ID = null;
 
 chrome.storage.sync.get(['openrouterApiKey', 'elevenlabsApiKey'], (result) => {
   OPENROUTER_API_KEY = result.openrouterApiKey;
@@ -9,6 +9,10 @@ chrome.storage.sync.get(['openrouterApiKey', 'elevenlabsApiKey'], (result) => {
     openrouter: !!OPENROUTER_API_KEY, 
     elevenlabs: !!ELEVENLABS_API_KEY 
   });
+});
+chrome.storage.local.get(['selectedVoice'], (result) => {
+  VOICE_ID = result.selectedVoice;
+  console.log('Selected voice ID loaded:', VOICE_ID);
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -169,3 +173,20 @@ async function handleZoom(direction, amount) {
   let newZoom = direction === 'in' ? currentZoom + zoomChange : currentZoom - zoomChange;
   await chrome.tabs.setZoom(tabs[0].id, Math.max(0.25, Math.min(5, newZoom)));
 }
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "CAPTURE_SCREENSHOT") {
+    chrome.tabs.captureVisibleTab(
+      null,
+      { format: "jpeg", quality: 40 },
+      (dataUrl) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse({ dataUrl });
+        }
+      }
+    );
+    return true; // async response
+  }
+});
